@@ -27,7 +27,7 @@ Then, you can just run:
 $ time python -m casbench.papers.paper_ble.figures
 ```
 
-NOTE: You can specify the number of processes used to parallelize computation by changing the variable `NUM_PROCESSES = 8` in `figures.py`.
+NOTE: You can specify the number of processes used to parallelize computation by changing the variable `NUM_PROCESSES = 32` in `figures.py`.
 
 Each function call in the `figures.py` file reproduces one set of figures. All figures will be written to the directory `paper_ble_figures/`:
 - `fig_intMEMOIR(), fig_intMEMOIR_errors_by_depth()` reproduces the results on the intMEMOIR data. The figures will be written to the subdirectory `intMEMOIR`.
