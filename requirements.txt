@@ -1,0 +1,13 @@
+black
+git+https://github.com/YosefLab/Cassiopeia@branch-length-estimation-paper#egg=cassiopeia-lineage
+ete3
+matplotlib
+laml
+networkx
+numpy
+pandas
+isort
+scanpy
+scipy
+seaborn
+wget

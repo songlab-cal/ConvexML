@@ -1,0 +1,1 @@
+from ._mr import get_multifurcation_resolver_from_config

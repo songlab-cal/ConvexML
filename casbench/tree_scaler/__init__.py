@@ -1,0 +1,1 @@
+from ._tree_scaler import get_tree_scaler_from_config
