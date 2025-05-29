@@ -1,6 +1,5 @@
 from casbench.config import Config, sanity_check_config
 
-from . import _hardcoded
 from ._lbi_jungle import LBIJungle
 
 
