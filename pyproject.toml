@@ -2,6 +2,9 @@
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+packages = ["convexml"]
+
 [project]
 name = "convexml"
 version = "0.1.0"
@@ -9,7 +12,7 @@ description = "ConvexML: Branch length estimation under irreversible mutation mo
 authors = [{ name = "Sebastian Prillo" }]
 requires-python = ">=3.10"
 dependencies = [
-    "git+https://github.com/YosefLab/Cassiopeia@master#egg=cassiopeia-lineage",
+    "cassiopeia-lineage @ git+https://github.com/YosefLab/Cassiopeia@master",
     "cvxpy",
     "networkx",
     "numpy",
