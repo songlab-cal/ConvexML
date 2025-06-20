@@ -106,6 +106,16 @@ def convexml(
             default.
         _use_vectorized_implementation: Toggles between vectorized and
             non-vectorized implementations. Only used for profiling purposes.
+    Returns:
+        A dictionary containing:
+            - "tree_newick": The Newick string representation of the tree with
+                estimated branch lengths.
+            - "tree_cassiopeia": The CassiopeiaTree object with the estimated
+                branch lengths and ancestral character states.
+            - "model": The branch length estimation model, which is of the
+                class IIDExponentialMLE. This is for advanced usage and testing
+                only, e.g. if you want to extract the estimated mutation rate
+                of the model.
     """
     branch_length_estimation_model = IIDExponentialMLE(
         minimum_branch_length=minimum_branch_length,
