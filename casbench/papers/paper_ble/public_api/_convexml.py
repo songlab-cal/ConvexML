@@ -16,7 +16,7 @@ import networkx as nx
 import numpy as np
 from copy import deepcopy
 from cassiopeia.tools import IIDExponentialMLE
-from ._parsimony import maximum_parsimony
+from ._parsimony import maximum_parsimony, conservative_maximum_parsimony
 
 
 class ConvexMLValueError(Exception):
@@ -99,7 +99,7 @@ def convexml(
         pendant_branch_minimum_branch_length_multiplier: For pendant edges in
             the tree (i.e. those corresponding to leaf nodes), the minimum
             branch length constraint does not really apply since leaves do not
-            correspond to cell divisions. Thsu we set 
+            correspond to cell divisions. Thus we set
             pendant_branch_minimum_branch_length_multiplier=0.5 by
             default.
         _use_vectorized_implementation: Toggles between vectorized and
@@ -164,7 +164,7 @@ def convexml(
         if ancestral_state_reconstructor == "maximum_parsimony":
             tree = maximum_parsimony(tree)
         elif ancestral_state_reconstructor == "conservative_maximum_parsimony":
-            raise NotImplementedError("tree = conservative_maximum_parsimony(tree)")
+            tree = conservative_maximum_parsimony(tree)
         else:
             raise ConvexMLValueError(
                 "Invalid value for `ancestral_state_reconstructor`. "

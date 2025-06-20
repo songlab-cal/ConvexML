@@ -14,6 +14,12 @@ from parameterized import parameterized
 from cassiopeia.data import CassiopeiaTree
 from cassiopeia.simulator import Cas9LineageTracingDataSimulator
 from casbench.papers.paper_ble.public_api._convexml import convexml
+from casbench.simulated_data_benchmarking import run_ble_unrolled, run_internal_node_time_metric_unrolled
+from casbench.config import smart_call
+from casbench.io import read_tree, read_float
+import os
+import tempfile
+from casbench import caching
 
 
 def to_newick(
@@ -1306,3 +1312,136 @@ class TestConvexML(unittest.TestCase):
         self.assertAlmostEqual(
             model.log_likelihood, model.penalized_log_likelihood, places=3
         )
+
+    def test_intMEMOIR(self):
+        tmpdir = tempfile.mkdtemp()
+        caching.set_cache_dir(tmpdir)
+        trees = {}
+        metrics = {}
+
+        for numtree in [1]:
+            # print(f"***** numtree = {numtree} *****")
+            for ble_name in ["GT", "ConvexML"]:
+                tree_simulator_config = {
+                    "identifier": "dream_sub1_sims__2024_09_15",
+                    "args": {"numtree": numtree},
+                }
+                leaf_subsampler_config = {
+                    "identifier": "UniformLeafSubsampler",
+                    "args": {
+                        "ratio": 1.0,
+                        "random_seed": 42,
+                        "collapse_unifurcations": False,
+                    },
+                }
+                tree_scaler_config = {
+                    "identifier": "unit_tree_scaler",
+                    "args": {},
+                }
+                lt_simulator_config = {
+                    "identifier": "dream_sub1_lt__2024_10_13",
+                    "args": {"numtree": numtree},
+                }
+                missing_data_mechanism_config = {
+                    "identifier": "none",
+                    "args": {},
+                }
+                missing_data_imputer_config = {"identifier": "none", "args": {}}
+                solver_config = {"identifier": "GroundTruthSolver", "args": {}}
+                mutationless_edges_strategy_config = {"identifier": "none", "args": {}}
+                multifurcation_resolver_config = {"identifier": "none", "args": {}}
+                ancestral_states_reconstructor_config = {"identifier": "maximum_parsimony", "args": {}}  # Since DREAM challenge has no missing data, MP and CMP agree.
+
+                ble_config = None
+                if ble_name == "GT":
+                    ble_config = {
+                        "identifier": "GroundTruthBLE",
+                        "args": {},
+                    }
+                elif ble_name == "ConvexML":
+                    ble_config = {
+                        "identifier": "IIDExponentialMLE",
+                        "args": {
+                            "minimum_branch_length": 0.15,
+                            "pseudo_mutations_per_edge": 0.1,
+                            "pseudo_non_mutations_per_edge": 0.1,
+                            "solver": "CLARABEL",
+                            "pendant_branch_minimum_branch_length_multiplier": 0.5,
+                        },
+                    }
+                elif ble_name == "LAML":
+                    ble_config = {
+                        "identifier": "LAML_2024_09_10_v2",
+                        "args": {"priors": {1:0.5, 2:0.5}},
+                    }
+                elif ble_name == "TiDeTree":
+                    ble_config = {
+                        "identifier": "TiDeTree_2024_09_19_v1",
+                        "args": {
+                            "priors": {1:0.5, 2:0.5},
+                            "experiment_duration": 54.0,
+                            "edit_duration": 54.0,
+                            "chain_length": 1000000,
+                        },
+                    }
+                else:
+                    raise ValueError(f"Unknown ble_name: {ble_name}")
+
+                ble_tree_scaler_config = {"identifier": "unit_tree_scaler", "args": {}}
+                internal_node_time_predictor_config = {"identifier": "mrca_impute", "args": {"aggregation": "mean"}}
+                metric_config = {"identifier": "mae", "args": {}}
+
+                configs = {
+                    "tree_simulator_config": tree_simulator_config,
+                    "leaf_subsampler_config": leaf_subsampler_config,
+                    "tree_scaler_config": tree_scaler_config,
+                    "lt_simulator_config": lt_simulator_config,
+                    "missing_data_mechanism_config": missing_data_mechanism_config,
+                    "missing_data_imputer_config": missing_data_imputer_config,
+                    "solver_config": solver_config,
+                    "mutationless_edges_strategy_config": mutationless_edges_strategy_config,
+                    "multifurcation_resolver_config": multifurcation_resolver_config,
+                    "ancestral_states_reconstructor_config": ancestral_states_reconstructor_config,
+                    "ble_config": ble_config,
+                    "ble_tree_scaler_config": ble_tree_scaler_config,
+                    "internal_node_time_predictor_config": internal_node_time_predictor_config,
+                    "metric_config": metric_config,
+                }
+
+                tree_dir = smart_call(
+                    run_ble_unrolled,
+                    configs
+                )
+                trees[f"{numtree}__{ble_name}"] = read_tree(tree_dir["output_tree_dir"] + "/result.txt")
+
+                metric_dir = smart_call(
+                    run_internal_node_time_metric_unrolled,
+                    configs
+                )
+                metrics[f"{numtree}__{ble_name}"] = read_float(metric_dir["output_metric_dir"] + "/result.txt")
+
+            tree = trees[f"{numtree}__GT"]
+            res_dict = convexml(
+                tree_newick=to_newick(tree.get_tree_topology(), record_node_names=True),
+                ancestral_sequences=None,
+                leaf_sequences={
+                    leaf_name: tree.get_character_states(leaf_name)
+                    for leaf_name in tree.leaves
+                },
+                ancestral_state_reconstructor="maximum_parsimony",
+                resolve_multifurcations_before_branch_length_estimation=False,
+                recover_multifurcations_after_branch_length_estimation=False,
+                minimum_branch_length=0.15,
+                pseudo_mutations_per_edge=0.1,
+                pseudo_non_mutations_per_edge=0.1,
+                solver="CLARABEL",
+                pendant_branch_minimum_branch_length_multiplier=0.5,
+            )
+            tree = res_dict["tree_cassiopeia"]
+            tree_newick = res_dict["tree_newick"]
+            model = res_dict["model"]
+            assert(tree.get_newick(record_branch_lengths=True) == tree_newick)
+
+            # Compare against tree from paper's experiment.
+            tree.scale_to_unit_length()
+            assert(tree.get_newick(record_branch_lengths=True) == trees[f"{numtree}__ConvexML"].get_newick(record_branch_lengths=True))
