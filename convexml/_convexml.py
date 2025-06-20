@@ -1,18 +1,20 @@
-# ConvexML: Branch length estimation under irreversible mutation models.
+"""
+This module contains the public API for the ConvexML method.
+"""
+from typing import Dict, List, Optional, Tuple
+from cassiopeia.data import CassiopeiaTree
+import networkx as nx
+import numpy as np
+from copy import deepcopy
+from ._parsimony import maximum_parsimony, conservative_maximum_parsimony
+from ._iid_exponential_mle import IIDExponentialMLE
+from ._multifurcations import resolve_multifurcations, pass_times_onto_original_tree
 
-This package implements the `ConvexML` method as a python package. Aditionally, if allows seamlessly reproducing all results from our `ConvexML` paper.
 
-## Installation
+class ConvexMLValueError(Exception):
+    pass
 
-To install the `convexml` package, just do:
 
-```
-$ pip install convexml
-```
-
-See `Example.ipynb` for an example of how to run ConvexML on your data. The full API of the `convexml` function is as follows:
-
-```
 def convexml(
     tree_newick: str,
     leaf_sequences: Dict[str, List[int]],
@@ -110,46 +112,81 @@ def convexml(
     Raises:
         ConvexMLValueError: If the arguments are not compatible with each other.
     """
-```
+    branch_length_estimation_model = IIDExponentialMLE(
+        minimum_branch_length=minimum_branch_length,
+        pseudo_mutations_per_edge=pseudo_mutations_per_edge,
+        pseudo_non_mutations_per_edge=pseudo_non_mutations_per_edge,
+        relative_leaf_depth=relative_leaf_depth,
+        relative_mutation_rates=relative_mutation_rates,
+        verbose=verbose,
+        solver=solver,
+        backup_solver=backup_solver,
+        pendant_branch_minimum_branch_length_multiplier=pendant_branch_minimum_branch_length_multiplier,
+        _use_vectorized_implementation=_use_vectorized_implementation,
+    )
 
-## Reproducing all results from our paper
+    tree = CassiopeiaTree(tree=tree_newick)
 
-To reproduce all results, first create a python environment and install all requirements. For instance:
-
-```
-$ conda create --name convexml-repro python=3.10
-$ conda activate convexml-repro
-$ pip install -r requirements.txt
-```
-
-If you have any issues setting up the environment, you can use the `pip_freeze.txt` instead.
-
-Make sure the tests are passing:
-
-```
-$ pip install pytest
-$ python -m pytest tests/
-```
-
-NOTE: If the TiDeTree tests fail, you may need to update your version of Java to a more recent version (please take a look at the TiDeTree documentation).
-
-Then, you can just run:
-
-```
-$ time python -m casbench.papers.paper_ble.figures
-```
-
-NOTE: You can specify the number of processes used to parallelize computation by changing the variable `NUM_PROCESSES = 32` in `figures.py`.
-
-Each function call in the `figures.py` file reproduces one set of figures. All figures will be written to the directory `paper_ble_figures/`:
-- `fig_intMEMOIR(), fig_intMEMOIR_errors_by_depth()` reproduces the results on the intMEMOIR data. The figures will be written to the subdirectory `intMEMOIR`.
-- `fig_branch_length_distribution()` reproduces the figure showing the distribution of branch lengths of the simulated ground truth trees. The two figures will be written to the subdirectory `branch_length_distribution`.
-- The calls to `fig_model_misspecification_errors_only_states()` reproduce the six figures showing the maximum parsimony bias as a function of the number of states. Each figure will be written to a directory `fig_model_misspecification_errors_only_states_[...]`.
-- `fig_mutation_rates_splined_from_real_data()` reproduces the figure showing the mutation rates used in our simulation, which have high variability (and thus violate the IID assumption). The figure will be written to `fig_mutation_rates_splined_from_real_data.png`.
-- `fig_q_distribution()` reproduces the figure showing the indel state distribution used. The figure will be written to `fig_q_distribution.png`.
-- `fig_full_results(with_gt_topology=True, use_ranks=False)` reproduces the full simulation results, using the ground truth tree topology. The figures will be written to the folder `full_results_with_gt_topology`. There are three different `contexts` being evaluated: 400 leaves, 40 leaves, and 2000 leaves. These are contexts 0, 1, and 2 respectively. The call with `with_gt_topology=False` reproduces the results when the tree topology is estimated as well (using the MaxCut tree topology estimator for all methods). The figures will be written to the folder `full_results_without_gt_topology`.
-- `fig_tree_simulator_parameters()` reproduces the parameters of the birth-death-process simulation, given in the section `Tree Simulation Details` of our paper.
-- `fig_brief_results()` reproduces the brief benchmarking results shown in our main text, which are only for the `default` lineage tracing regime. The figures will be written to the `fig_brief_results` subdirectory.
-- The calls to `fig_gt_trees(), fig_gt_trees_40(), fig_gt_trees_2000()` reproduces the figures showing examples of ground truth simulated trees. The trees will be saved to the `gt_trees` subdirectory; the sub-subdirectories `40/` and `2000/` contain the trees with 40 and 2000 leaves respectively.
-
-The codebase uses caching to make benchmarking faster and seamless. The data caches are set to `_cache`, `_cache_paper_ble`, `_cache_paper_ble_model_mis`. Feel free to delete these cache directories to free up space after you are done reproducing our results.
+    # Case 1 (less commons scenario): Ancestral states provided
+    if ancestral_sequences is not None:
+        # In this case, there are several constraints on the arguments:
+        if ancestral_state_reconstructor is not None:
+            raise ConvexMLValueError(
+                "If `ancestral_sequences` are provided, "
+                "`ancestral_state_reconstructor` must be None."
+            )
+        if resolve_multifurcations_before_branch_length_estimation:
+            raise ConvexMLValueError(
+                "If `ancestral_sequences` are provided, "
+                "`resolve_multifurcations_before_branch_length_estimation` must be False."
+            )
+        if recover_multifurcations_after_branch_length_estimation:
+            raise ConvexMLValueError(
+                "If `ancestral_sequences` are provided, "
+                "`recover_multifurcations_after_branch_length_estimation` must be False."
+            )
+        all_states = {**leaf_sequences, **ancestral_sequences}
+        tree.set_all_character_states(all_states)
+        branch_length_estimation_model.estimate_branch_lengths(tree)
+    elif ancestral_sequences is None:
+        ancestral_sequences = {internal_node: [-1] * len(next(iter(leaf_sequences.values())))
+                                 for internal_node in tree.internal_nodes}
+        all_states = {**leaf_sequences, **ancestral_sequences}
+        tree.set_all_character_states(all_states)
+        # Case 2 (most common scenario): Ancestral states not provided
+        # First figure out if we need to resolve multifurcations
+        if resolve_multifurcations_before_branch_length_estimation:
+            if recover_multifurcations_after_branch_length_estimation:
+                # We need to retain the original tree structure
+                tree_newick_original = deepcopy(tree_newick)
+                tree_original = deepcopy(tree)
+            tree = resolve_multifurcations(tree)
+        # Now we need to reconstruct the ancestral states
+        if ancestral_state_reconstructor is None:
+            raise ConvexMLValueError(
+                "If `ancestral_sequences` are None, "
+                "`ancestral_state_reconstructor` must be provided."
+            )
+        if ancestral_state_reconstructor == "maximum_parsimony":
+            tree = maximum_parsimony(tree)
+        elif ancestral_state_reconstructor == "conservative_maximum_parsimony":
+            tree = conservative_maximum_parsimony(tree)
+        else:
+            raise ConvexMLValueError(
+                "Invalid value for `ancestral_state_reconstructor`. "
+                "Must be one of 'maximum_parsimony', 'conservative_maximum_parsimony', or None."
+            )
+        # Now we perform branch length estimation
+        branch_length_estimation_model.estimate_branch_lengths(tree)
+        # Now we need to recover multifurcations if requested.
+        if recover_multifurcations_after_branch_length_estimation:
+            tree = pass_times_onto_original_tree(tree, tree_original)
+    else:
+        raise Exception("This should never happen. Please report this bug to the developers.")
+    tree_newick = tree.get_newick(record_branch_lengths=True)
+    res_dict = {
+        "tree_newick": tree_newick,
+        "tree_cassiopeia": tree,
+        "model": branch_length_estimation_model,
+    }
+    return res_dict
