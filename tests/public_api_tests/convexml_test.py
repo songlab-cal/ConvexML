@@ -1390,3 +1390,99 @@ class TestConvexML(unittest.TestCase):
             # Compare against tree from paper's experiment.
             tree.scale_to_unit_length()
             assert(tree.get_newick(record_branch_lengths=True) == trees[f"{numtree}__ConvexML"].get_newick(record_branch_lengths=True))
+
+    def test_multifurcations_1(self):
+        """
+        On a tree with multifuractions, we ask for multifurcations to be resolved.
+        """
+        tree = nx.DiGraph()
+        tree.add_nodes_from(["0", "1", "2", "3", "4"]),
+        tree.add_edges_from(
+            [
+                ("0", "1"),
+                ("1", "2"),
+                ("1", "3"),
+                ("1", "4"),
+            ]
+        )
+        tree = CassiopeiaTree(tree=tree)
+        tree.set_character_states_at_leaves(
+            {
+                "2": [1, 0],
+                "3": [1, 0],
+                "4": [1, 0],
+            }
+        )
+        res_dict = convexml(
+            tree_newick=to_newick(tree.get_tree_topology(), record_node_names=True),
+            leaf_sequences={
+                leaf_name: tree.get_character_states(leaf_name)
+                for leaf_name in tree.leaves
+            },
+            recover_multifurcations_after_branch_length_estimation=False,
+        )
+        tree = res_dict["tree_cassiopeia"]
+        tree_newick = res_dict["tree_newick"]
+        model = res_dict["model"]
+        assert(tree.get_newick(record_branch_lengths=True) == tree_newick)
+        # tree_newick = ((4:0.16526701766952634,(2:0.08856457639696891,3:0.08856457639696891):0.0767024412726871):0.8347329823304737);
+        assert(tree.get_newick(record_branch_lengths=False) == "((4,(2,3)));")
+
+    def test_multifurcations_2(self):
+        """
+        On a tree with multifuractions, we ask for multifurcations to be resolved ONLY
+        for the purpose of branch length estimation.
+        """
+        tree = nx.DiGraph()
+        tree.add_nodes_from(["0", "1", "2", "3", "4"]),
+        tree.add_edges_from(
+            [
+                ("0", "1"),
+                ("1", "2"),
+                ("1", "3"),
+                ("1", "4"),
+            ]
+        )
+        tree = CassiopeiaTree(tree=tree)
+        tree.set_character_states_at_leaves(
+            {
+                "2": [1, 0],
+                "3": [1, 0],
+                "4": [1, 0],
+            }
+        )
+        res_dict = convexml(
+            tree_newick=to_newick(tree.get_tree_topology(), record_node_names=True),
+            leaf_sequences={
+                leaf_name: tree.get_character_states(leaf_name)
+                for leaf_name in tree.leaves
+            },
+        )
+        tree = res_dict["tree_cassiopeia"]
+        tree_newick = res_dict["tree_newick"]
+        model = res_dict["model"]
+        assert(tree.get_newick(record_branch_lengths=True) == tree_newick)
+        # tree_newick = ((2:0.165267017669656,3:0.165267017669656,4:0.16526701766952634):0.8347329823304737);
+        assert(tree.get_newick(record_branch_lengths=False) == "((2,3,4));")
+        root_edge_length = tree.get_branch_length("0", "1")
+
+        # Now repeat, but this time we DO NOT resolve multifurcations. This causes the length of
+        # the root edge to be longer.
+        res_dict = convexml(
+            tree_newick=to_newick(tree.get_tree_topology(), record_node_names=True),
+            leaf_sequences={
+                leaf_name: tree.get_character_states(leaf_name)
+                for leaf_name in tree.leaves
+            },
+            resolve_multifurcations_before_branch_length_estimation=False,
+            recover_multifurcations_after_branch_length_estimation=False,
+        )
+        tree = res_dict["tree_cassiopeia"]
+        tree_newick = res_dict["tree_newick"]
+        model = res_dict["model"]
+        assert(tree.get_newick(record_branch_lengths=True) == tree_newick)
+        # tree_newick = ((2:0.11151591302926378,3:0.11151591302979658,4:0.11151591302971975):0.8884840869702803);
+        assert(tree.get_newick(record_branch_lengths=False) == "((2,3,4));")
+        new_root_edge_length = tree.get_branch_length("0", "1")
+
+        assert(root_edge_length < new_root_edge_length)  # The root edge length is longer because multifurcations were not resolved.

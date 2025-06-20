@@ -107,6 +107,8 @@ def convexml(
                 class IIDExponentialMLE. This is for advanced usage and testing
                 only, e.g. if you want to extract the estimated mutation rate
                 of the model.
+    Raises:
+        ConvexMLValueError: If the arguments are not compatible with each other.
     """
 ```
 

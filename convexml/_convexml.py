@@ -16,6 +16,7 @@ import numpy as np
 from copy import deepcopy
 from ._parsimony import maximum_parsimony, conservative_maximum_parsimony
 from ._iid_exponential_mle import IIDExponentialMLE
+from ._multifurcations import resolve_multifurcations, pass_times_onto_original_tree
 
 
 class ConvexMLValueError(Exception):
@@ -116,6 +117,8 @@ def convexml(
                 class IIDExponentialMLE. This is for advanced usage and testing
                 only, e.g. if you want to extract the estimated mutation rate
                 of the model.
+    Raises:
+        ConvexMLValueError: If the arguments are not compatible with each other.
     """
     branch_length_estimation_model = IIDExponentialMLE(
         minimum_branch_length=minimum_branch_length,
@@ -165,7 +168,7 @@ def convexml(
                 # We need to retain the original tree structure
                 tree_newick_original = deepcopy(tree_newick)
                 tree_original = deepcopy(tree)
-            raise NotImplementedError("tree = resolve_multifurcations(tree)")
+            tree = resolve_multifurcations(tree)
         # Now we need to reconstruct the ancestral states
         if ancestral_state_reconstructor is None:
             raise ConvexMLValueError(
@@ -185,7 +188,7 @@ def convexml(
         branch_length_estimation_model.estimate_branch_lengths(tree)
         # Now we need to recover multifurcations if requested.
         if recover_multifurcations_after_branch_length_estimation:
-            raise NotImplementedError("tree = pass_times_onto_original_tree(tree, tree_original)")
+            tree = pass_times_onto_original_tree(tree, tree_original)
     else:
         raise Exception("This should never happen. Please report this bug to the developers.")
     tree_newick = tree.get_newick(record_branch_lengths=True)
