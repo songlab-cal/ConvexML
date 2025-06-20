@@ -1,13 +1,5 @@
 """
 This module contains the public API for the ConvexML method.
-
-# TODO: Use cases to cover (add a test for all of these):
-1) Ancestral states not provided:
-    1.1) Do not collapse multifurcations.
-    1.2) Collapse multifurcations:
-        2.1) Recover multifurcations after branch length estimation.
-        2.2) Do not recover multifurcations after branch length estimation.
-2) Ancestral states provided.
 """
 from typing import Dict, List, Optional, Tuple
 from cassiopeia.data import CassiopeiaTree
