@@ -15,6 +15,19 @@ from cassiopeia.mixins import IIDExponentialMLEError
 from ._branch_length_estimator import BranchLengthEstimator
 
 
+def _get_edge_depth(tree: CassiopeiaTree) -> int:
+    """
+    Maximum number of edges from root to leaf in the tree.
+    """
+    def dfs(v):
+        res = 0
+        for u in tree.children(v):
+            res = max(res, 1 + dfs(u))
+        return res
+
+    return dfs(tree.root)
+
+
 class IIDExponentialMLE(BranchLengthEstimator):
     """
     MLE under a model of IID memoryless CRISPR/Cas9 mutations.
@@ -175,7 +188,7 @@ class IIDExponentialMLE(BranchLengthEstimator):
             )
 
         # # # # # Check that the minimum_branch_length makes sense # # # # #
-        if tree.get_edge_depth() * minimum_branch_length >= 1.0:
+        if _get_edge_depth(tree) * minimum_branch_length >= 1.0:
             raise ValueError(
                 "The minimum_branch_length is too large. Please reduce it."
             )
