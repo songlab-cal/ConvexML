@@ -4,7 +4,12 @@ from typing import Dict, Set
 from cassiopeia.data import CassiopeiaTree
 
 
-def maximum_parsimony(tree: CassiopeiaTree):
+def maximum_parsimony(tree: CassiopeiaTree) -> CassiopeiaTree:
+    """
+    Maximum Parsimony Reconstruction under an irreversible mutation model.
+
+    The tree is NOT modified in place: a new tree is returned.
+    """
     tree = deepcopy(tree)
     tree.reconstruct_ancestral_characters()
     tree.set_character_states(tree.root, [0] * tree.n_character)
@@ -67,7 +72,7 @@ def conservative_maximum_parsimony(
     tree: CassiopeiaTree,
 ) -> CassiopeiaTree:
     """
-    Conservative Maximum Parsimony Reconstruction.
+    Conservative Maximum Parsimony Reconstruction under an irreversible mutation model.
 
     Only states that are unambiguous under MP are imputed.
     The tree is NOT modified in place: a new tree is returned.

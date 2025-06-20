@@ -13,7 +13,7 @@ from parameterized import parameterized
 
 from cassiopeia.data import CassiopeiaTree
 from cassiopeia.simulator import Cas9LineageTracingDataSimulator
-from casbench.papers.paper_ble.public_api._convexml import convexml
+from convexml import convexml
 from casbench.simulated_data_benchmarking import run_ble_unrolled, run_internal_node_time_metric_unrolled
 from casbench.config import smart_call
 from casbench.io import read_tree, read_float
@@ -1428,14 +1428,9 @@ class TestConvexML(unittest.TestCase):
                     leaf_name: tree.get_character_states(leaf_name)
                     for leaf_name in tree.leaves
                 },
-                ancestral_state_reconstructor="maximum_parsimony",
                 resolve_multifurcations_before_branch_length_estimation=False,
                 recover_multifurcations_after_branch_length_estimation=False,
                 minimum_branch_length=0.15,
-                pseudo_mutations_per_edge=0.1,
-                pseudo_non_mutations_per_edge=0.1,
-                solver="CLARABEL",
-                pendant_branch_minimum_branch_length_multiplier=0.5,
             )
             tree = res_dict["tree_cassiopeia"]
             tree_newick = res_dict["tree_newick"]

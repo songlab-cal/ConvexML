@@ -11,12 +11,11 @@ This module contains the public API for the ConvexML method.
 """
 from typing import Dict, List, Optional, Tuple
 from cassiopeia.data import CassiopeiaTree
-import unittest
 import networkx as nx
 import numpy as np
 from copy import deepcopy
-from cassiopeia.tools import IIDExponentialMLE
 from ._parsimony import maximum_parsimony, conservative_maximum_parsimony
+from ._iid_exponential_mle import IIDExponentialMLE
 
 
 class ConvexMLValueError(Exception):
@@ -37,7 +36,7 @@ def convexml(
     relative_leaf_depth: Optional[List[Tuple[str, float]]] = None,
     relative_mutation_rates: Optional[List[float]] = None,
     verbose: bool = False,
-    solver: str = "ECOS",
+    solver: str = "CLARABEL",
     backup_solver: Optional[str] = "SCS",
     pendant_branch_minimum_branch_length_multiplier: float = 0.5,
     _use_vectorized_implementation: bool = True,
