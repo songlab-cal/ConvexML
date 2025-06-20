@@ -29,7 +29,6 @@ def convexml(
     ancestral_state_reconstructor: Optional[str] = "conservative_maximum_parsimony",
     resolve_multifurcations_before_branch_length_estimation: bool = True,
     recover_multifurcations_after_branch_length_estimation: bool = True,
-    # iid_exponential_mle arguments
     minimum_branch_length: float = 0.01,
     pseudo_mutations_per_edge: float = 0.1,
     pseudo_non_mutations_per_edge: float = 0.1,
@@ -42,17 +41,20 @@ def convexml(
     _use_vectorized_implementation: bool = True,
 ) -> Dict[str, object]:
     """
+    ConvexML method for branch length estimation under an irreversible mutation model.
 
     Arguments:
         tree_newick: The Newick string representation of the tree topology.
-            For example: "((D,F)E,(B,H)B);".
+            For example: "((D,F),(B,H));".
         leaf_sequences: A dictionary mapping leaf names to their sequences,
             where sequences are represented as lists of integers. Missing data
             should be represented as -1.
         ancestral_sequences: Optionally, the ancestral states can be provided
             too. If not provided (i.e. None), then the algorithm, to
             reconstruct the ancestral sequences can be provided with
-            `ancestral_state_reconstructor`.
+            `ancestral_state_reconstructor`. If you provide ancestral sequences,
+            then your newick tree should name the internal nodes too, e.g.
+            "((D,F)E,(B,H)B);".
         ancestral_state_reconstructor: Either "maximum_parsimony" or
             "conservative_maximum_parsimony".
             Use None when `ancestral_sequences` are provided.
@@ -85,6 +87,7 @@ def convexml(
             the relative mutation rate at that site. Must be fully specified or
             None in which case all sites are assumed to evolve at the same rate.
             None is the default value for this argument.
+        verbose: Verbosity.
         solver: Convex optimization solver to use. Can be "SCS", "ECOS", or
             "MOSEK". Note that "MOSEK" solver should be installed separately.
             We recommend "ECOS" (which is the default).
@@ -103,7 +106,6 @@ def convexml(
             default.
         _use_vectorized_implementation: Toggles between vectorized and
             non-vectorized implementations. Only used for profiling purposes.
-        verbose: Verbosity level.
     """
     branch_length_estimation_model = IIDExponentialMLE(
         minimum_branch_length=minimum_branch_length,
