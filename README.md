@@ -1,6 +1,6 @@
 # ConvexML: Branch length estimation under irreversible mutation models.
 
-This package implements the `ConvexML` method as a python package. Aditionally, if allows seamlessly reproducing all results from our `ConvexML` paper.
+This package implements the `ConvexML` branch length estimation method. Aditionally, if allows seamlessly reproducing all results from our `ConvexML` paper.
 
 ## Installation
 
