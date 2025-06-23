@@ -4,7 +4,13 @@ This package implements the `ConvexML` branch length estimation method. Aditiona
 
 ## Installation
 
-To install the `convexml` package, just do:
+ConvexML requires Python version 3.10 or greater. If needed, you can create and activate a virtual enviroment for `convexml` as follows:
+```
+$ conda create --name convexml-env python=3.10
+$ conda activate convexml-env
+```
+
+ConvexML is on `pypi`. To install the `convexml` package, just do:
 
 ```
 $ pip install convexml
