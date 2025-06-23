@@ -12,7 +12,7 @@ conda activate convexml-env
 
 First install the Cassiopeia package, as follows:
 ```
-pip install git+https://github.com/YosefLab/Cassiopeia@branch-length-estimation-paper#egg=cassiopeia-lineage
+pip install git+https://github.com/YosefLab/Cassiopeia@master#egg=cassiopeia-lineage
 ```
 
 Then, to install the `convexml` package, just do:
