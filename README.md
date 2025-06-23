@@ -10,7 +10,12 @@ $ conda create --name convexml-env python=3.10
 $ conda activate convexml-env
 ```
 
-ConvexML is on `pypi`. To install the `convexml` package, just do:
+First install the Cassiopeia package, as follows:
+```
+$ pip install git+https://github.com/YosefLab/Cassiopeia@branch-length-estimation-paper#egg=cassiopeia-lineage
+```
+
+Then, to install the `convexml` package, just do:
 
 ```
 $ pip install convexml
