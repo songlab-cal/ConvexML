@@ -6,19 +6,19 @@ This package implements the `ConvexML` branch length estimation method. Aditiona
 
 ConvexML requires Python version 3.10 or greater. If needed, you can create and activate a virtual enviroment for `convexml` as follows:
 ```
-$ conda create --name convexml-env python=3.10
-$ conda activate convexml-env
+conda create --name convexml-env python=3.10
+conda activate convexml-env
 ```
 
 First install the Cassiopeia package, as follows:
 ```
-$ pip install git+https://github.com/YosefLab/Cassiopeia@branch-length-estimation-paper#egg=cassiopeia-lineage
+pip install git+https://github.com/YosefLab/Cassiopeia@branch-length-estimation-paper#egg=cassiopeia-lineage
 ```
 
 Then, to install the `convexml` package, just do:
 
 ```
-$ pip install convexml
+pip install convexml
 ```
 
 See `Example.ipynb` for an example of how to run ConvexML on your data. The full API of the `convexml` function is as follows:
@@ -128,9 +128,9 @@ def convexml(
 To reproduce all results, first create a python environment and install all requirements. For instance:
 
 ```
-$ conda create --name convexml-repro python=3.10
-$ conda activate convexml-repro
-$ pip install -r requirements.txt
+conda create --name convexml-repro python=3.10
+conda activate convexml-repro
+pip install -r requirements.txt
 ```
 
 If you have any issues setting up the environment, you can use the `pip_freeze.txt` instead.
@@ -138,8 +138,8 @@ If you have any issues setting up the environment, you can use the `pip_freeze.t
 Make sure the tests are passing:
 
 ```
-$ pip install pytest
-$ python -m pytest tests/
+pip install pytest
+python -m pytest tests/
 ```
 
 NOTE: If the TiDeTree tests fail, you may need to update your version of Java to a more recent version (please take a look at the TiDeTree documentation).
@@ -147,7 +147,7 @@ NOTE: If the TiDeTree tests fail, you may need to update your version of Java to
 Then, you can just run:
 
 ```
-$ time python -m casbench.papers.paper_ble.figures
+time python -m casbench.papers.paper_ble.figures
 ```
 
 NOTE: You can specify the number of processes used to parallelize computation by changing the variable `NUM_PROCESSES = 32` in `figures.py`.
