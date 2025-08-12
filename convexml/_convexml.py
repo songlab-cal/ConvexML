@@ -43,7 +43,7 @@ def convexml(
             where sequences are represented as lists of integers. Missing data
             should be represented as -1.
         ancestral_sequences: Optionally, the ancestral states can be provided
-            too. If not provided (i.e. None), then the algorithm, to
+            too. If not provided (i.e. None), then the algorithm to
             reconstruct the ancestral sequences can be provided with
             `ancestral_state_reconstructor`. If you provide ancestral sequences,
             then your newick tree should name the internal nodes too, e.g.

@@ -52,7 +52,7 @@ def convexml(
             where sequences are represented as lists of integers. Missing data
             should be represented as -1.
         ancestral_sequences: Optionally, the ancestral states can be provided
-            too. If not provided (i.e. None), then the algorithm, to
+            too. If not provided (i.e. None), then the algorithm to
             reconstruct the ancestral sequences can be provided with
             `ancestral_state_reconstructor`. If you provide ancestral sequences,
             then your newick tree should name the internal nodes too, e.g.
@@ -164,3 +164,9 @@ Each function call in the `figures.py` file reproduces one set of figures. All f
 - The calls to `fig_gt_trees(), fig_gt_trees_40(), fig_gt_trees_2000()` reproduces the figures showing examples of ground truth simulated trees. The trees will be saved to the `gt_trees` subdirectory; the sub-subdirectories `40/` and `2000/` contain the trees with 40 and 2000 leaves respectively.
 
 The codebase uses caching to make benchmarking faster and seamless. The data caches are set to `_cache`, `_cache_paper_ble`, `_cache_paper_ble_model_mis`. Feel free to delete these cache directories to free up space after you are done reproducing our results.
+
+Note that you do not need to download any data files to reproduce our results this way -- all data will be generated de-novo, thus reproducing our results from scratch. In particular, you can change any parameters of the simulation to construct your own new benchmarks.
+
+## Data Availability
+
+Simulated data files used for our benchmark can be found in the Dryad data repository: https://doi.org/10.5061/dryad.qrfj6q5nz
