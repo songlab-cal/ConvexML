@@ -545,11 +545,6 @@ class IIDExponentialMLE(BranchLengthEstimator):
                                     "descends from "
                                     f"{character_states_dict[u][i]}."
                                 )
-                    elif character_states[i] == 0 and parent_states[i] != 0:
-                        raise Exception(
-                            "If a node has state 0 (uncut), its parent should "
-                            "also have state 0."
-                        )
         return long_edge_mutations
 
     @staticmethod
