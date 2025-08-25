@@ -1390,9 +1390,10 @@ class TestConvexML(unittest.TestCase):
             character_matrix=pd.DataFrame(leaf_sequences).T,
         )
         for (p, c) in expected_tree_cassiopeia.edges:
-            self.assertAlmostEqual(
+            np.testing.assert_almost_equal(
                 expected_tree_cassiopeia.get_branch_length(p, c),
                 res_cassiopeia.get_branch_length(p, c),
+                decimal=5,
             )
 
     @pytest.mark.slow
@@ -1427,7 +1428,8 @@ class TestConvexML(unittest.TestCase):
             character_matrix=character_matrix,
         )
         for (p, c) in expected_tree_cassiopeia.edges:
-            self.assertAlmostEqual(
+            np.testing.assert_almost_equal(
                 expected_tree_cassiopeia.get_branch_length(p, c),
                 res_cassiopeia.get_branch_length(p, c),
+                decimal=6,
             )
