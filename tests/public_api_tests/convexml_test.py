@@ -5,12 +5,16 @@ This wraps the tests of IIDExponentialMLE in cassiopeia.tools, making sure our
 public API wrapper does not change the behavior of the original code.
 """
 import math
+import pytest
+import time
 import unittest
 
 import networkx as nx
 import numpy as np
+import pandas as pd
 from parameterized import parameterized
 
+from casbench import io
 from cassiopeia.data import CassiopeiaTree
 from cassiopeia.simulator import Cas9LineageTracingDataSimulator
 from convexml import convexml, to_newick
@@ -1354,3 +1358,76 @@ class TestConvexML(unittest.TestCase):
         new_root_edge_length = tree.get_branch_length("0", "1")
 
         assert(root_edge_length < new_root_edge_length)  # The root edge length is longer because multifurcations were not resolved.
+
+    def test_intmemoir_regression(self):
+        """
+        Check that running on intMEMOIR trees gives the same results
+        """
+        tree_newick = "((((1,2),(3,4)),(5,6)),((8,9),10));"
+        leaf_sequences = {
+            '10': [1, 0, 0, 2, 2, 0, 2, 2, 2, 0],
+            '5': [1, 1, 0, 2, 2, 0, 2, 2, 2, 0],
+            '6': [1, 1, 0, 2, 1, 0, 2, 2, 2, 0],
+            '8': [2, 0, 2, 1, 1, 0, 1, 1, 2, 0],
+            '9': [2, 0, 2, 1, 1, 0, 1, 1, 2, 0],
+            '1': [2, 1, 0, 2, 2, 0, 2, 1, 2, 0],
+            '2': [2, 0, 0, 2, 2, 0, 2, 1, 2, 0],
+            '3': [2, 0, 0, 2, 2, 0, 2, 1, 2, 0],
+            '4': [2, 0, 0, 2, 2, 0, 2, 1, 2, 0],
+        }
+
+        res = convexml(
+            tree_newick=tree_newick,
+            leaf_sequences=leaf_sequences,
+            minimum_branch_length=0.15,  # (We assume that the tree has a height of exactly 1.0)
+        )
+        res_cassiopeia = res["tree_cassiopeia"]
+
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        expected_newick = io.read_str(os.path.join(dir_path, "data/intmemoir_expected_newick.txt"))
+        expected_tree_cassiopeia = CassiopeiaTree(
+            tree=expected_newick,
+            character_matrix=pd.DataFrame(leaf_sequences).T,
+        )
+        for (p, c) in expected_tree_cassiopeia.edges:
+            self.assertAlmostEqual(
+                expected_tree_cassiopeia.get_branch_length(p, c),
+                res_cassiopeia.get_branch_length(p, c),
+            )
+
+    @pytest.mark.slow
+    def test_benchmark_regression(self):
+        """
+        Check that running ConvexML on simulated data gives the same branch lengths.
+
+        We use the default regime tree (from Dryad: "paper_ble_trees/number_of_cassettes/13/tree_0_[...].txt")
+        """
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        tree_newick = io.read_str(os.path.join(dir_path, "data/tree_0_newick.txt"))
+        character_matrix = pd.read_csv(os.path.join(dir_path, "data/tree_0_character_matrix.csv"))
+        character_matrix['Unnamed: 0'] = character_matrix['Unnamed: 0'].astype(str)
+        character_matrix.set_index(['Unnamed: 0'], inplace=True)
+        tree = CassiopeiaTree(
+            tree=tree_newick,
+            character_matrix=character_matrix,
+        )
+        st = time.time()
+        res = convexml(
+            tree_newick=to_newick(tree.get_tree_topology(), record_node_names=True),
+            leaf_sequences={
+                leaf_name: tree.get_character_states(leaf_name)
+                for leaf_name in tree.leaves
+            },
+        )
+        print(f"Total time: {time.time() - st}")
+        res_cassiopeia = res["tree_cassiopeia"]
+        expected_newick = io.read_str(os.path.join(dir_path, "data/expected_newick.txt"))
+        expected_tree_cassiopeia = CassiopeiaTree(
+            tree=expected_newick,
+            character_matrix=character_matrix,
+        )
+        for (p, c) in expected_tree_cassiopeia.edges:
+            self.assertAlmostEqual(
+                expected_tree_cassiopeia.get_branch_length(p, c),
+                res_cassiopeia.get_branch_length(p, c),
+            )
