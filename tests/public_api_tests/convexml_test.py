@@ -1419,6 +1419,7 @@ class TestConvexML(unittest.TestCase):
                 leaf_name: tree.get_character_states(leaf_name)
                 for leaf_name in tree.leaves
             },
+            compute_data_log_likelihood_after_solving=False,
         )
         print(f"Total time: {time.time() - st}")
         res_cassiopeia = res["tree_cassiopeia"]

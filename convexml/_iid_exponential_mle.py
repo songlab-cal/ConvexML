@@ -96,8 +96,8 @@ class IIDExponentialMLE(BranchLengthEstimator):
         _use_vectorized_implementation: Deprecated -- we only support the
             vectorized implementation as of ConvexML version 1.0.0
         compute_data_log_likelihood_after_solving: If True, after solving the
-            optimization problem, the data log-likelihod will be stored in this
-            variable.
+            optimization problem, the data log-likelihood (*without pseudocounts*)
+            will be computed and stored in the `log_likelihood` attribute.
         verbose: Verbosity level.
 
     Attributes:
