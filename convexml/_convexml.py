@@ -97,8 +97,8 @@ def convexml(
             correspond to cell divisions. Thus we set
             pendant_branch_minimum_branch_length_multiplier=0.5 by
             default.
-        _use_vectorized_implementation: Toggles between vectorized and
-            non-vectorized implementations. Only used for profiling purposes.
+        _use_vectorized_implementation: Deprecated -- we only support the
+            vectorized implementation as of ConvexML version 1.0.0
     Returns:
         A dictionary containing:
             - "tree_newick": The Newick string representation of the tree with

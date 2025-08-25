@@ -94,7 +94,7 @@ class IIDExponentialMLE(BranchLengthEstimator):
             An intermediate option would be
             pendant_branch_minimum_branch_length_multiplier=0.5.
         _use_vectorized_implementation: Deprecated -- we only support the
-            vectorized implementation as of version 1.0.0
+            vectorized implementation as of ConvexML version 1.0.0
         compute_data_log_likelihood_after_solving: If True, after solving the
             optimization problem, the data log-likelihod will be stored in this
             variable.
