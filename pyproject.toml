@@ -7,7 +7,7 @@ packages = ["convexml"]
 
 [project]
 name = "convexml"
-version = "0.1.0"
+version = "1.0.0"
 description = "ConvexML: Branch length estimation under irreversible mutation models."
 authors = [{ name = "Sebastian Prillo" }]
 readme = "README.md"

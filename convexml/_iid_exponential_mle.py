@@ -93,8 +93,11 @@ class IIDExponentialMLE(BranchLengthEstimator):
             by setting pendant_branch_minimum_branch_length_multiplier=0.
             An intermediate option would be
             pendant_branch_minimum_branch_length_multiplier=0.5.
-        _use_vectorized_implementation: Toggles between vectorized and
-            non-vectorized implementations. Only used for profiling purposes.
+        _use_vectorized_implementation: Deprecated -- we only support the
+            vectorized implementation as of version 1.0.0
+        compute_data_log_likelihood_after_solving: If True, after solving the
+            optimization problem, the data log-likelihod will be stored in this
+            variable.
         verbose: Verbosity level.
 
     Attributes:
@@ -125,6 +128,7 @@ class IIDExponentialMLE(BranchLengthEstimator):
         solver: str = "ECOS",
         backup_solver: Optional[str] = "SCS",
         pendant_branch_minimum_branch_length_multiplier: float = 1.0,
+        compute_data_log_likelihood_after_solving: bool = True,
         _use_vectorized_implementation: bool = True,
     ):
         allowed_solvers = ["ECOS", "SCS", "MOSEK", "CLARABEL"]
@@ -147,6 +151,7 @@ class IIDExponentialMLE(BranchLengthEstimator):
         self._penalized_log_likelihood = None
         self._log_likelihood = None
         self._backup_solver_was_needed = None
+        self._compute_data_log_likelihood_after_solving = compute_data_log_likelihood_after_solving
 
     def estimate_branch_lengths(self, tree: CassiopeiaTree) -> None:
         r"""
@@ -230,52 +235,69 @@ class IIDExponentialMLE(BranchLengthEstimator):
                 f"{relative_leaf_depth} but the leaves in the tree are: "
                 f"{tree.leaves}"
             )
-        deepest_leaf = sorted(
-            [
-                (relative_depth, leaf)
-                for (leaf, relative_depth) in relative_leaf_depth
-            ]
-        )[-1][1]
-        relative_leaf_depth = dict(relative_leaf_depth)
 
-        # # # # # Create variables of the optimization problem # # # # #
-        t_variables = dict(
-            [
-                (node_id, cp.Variable(name=f"t_{node_id}"))
-                for node_id in tree.nodes
-            ]
-        )
+        deepest_leaf = max(
+            (
+                (relative_depth, leaf) for (leaf, relative_depth) in relative_leaf_depth
+            )
+        )[1]
+        relative_leaf_depth_dict = dict(relative_leaf_depth)
+        del relative_leaf_depth
 
-        # # # # # Create constraints of the optimization problem # # # # #
-        root = tree.root
-        root_has_time_0_constraint = [t_variables[root] == 0]
+        # # # # # Create variables of the optimization problem, in a vectorized way # # # # #
+        nodes = tree.nodes
+        num_nodes = len(nodes)
+        node_to_idx = {node: i for (i, node) in enumerate(nodes)}
+        t_variables = cp.Variable(num_nodes, name="t")
+
+        # # # # # Create constraints of the optimization problem, in a vectorized way # # # # #
+        all_constraints = []
+
+        t_deepest_leaf = t_variables[node_to_idx[deepest_leaf]]
+
+        root_has_time_0_constraint = t_variables[node_to_idx[tree.root]] == 0
+        all_constraints.append(root_has_time_0_constraint)
+
         leaf_set = set(tree.leaves)
-        minimum_branch_length_constraints = [
-            t_variables[child]
-            >= t_variables[parent]
-            + minimum_branch_length * t_variables[deepest_leaf]
-            for (parent, child) in tree.edges
-            if child not in leaf_set
-        ] + [
-            t_variables[child]
-            >= t_variables[parent]
-            + minimum_branch_length * t_variables[deepest_leaf] * pendant_branch_minimum_branch_length_multiplier
-            for (parent, child) in tree.edges
-            if child in leaf_set
-        ]
-        ultrametric_constraints = [
-            t_variables[leaf]
-            == t_variables[deepest_leaf]
-            * relative_leaf_depth[leaf]
-            / relative_leaf_depth[deepest_leaf]
-            for leaf in tree.leaves
-            if leaf != deepest_leaf
-        ]
-        all_constraints = (
-            root_has_time_0_constraint
-            + minimum_branch_length_constraints
-            + ultrametric_constraints
+        # Map edges to two vectors: one of parents, and one of children.
+        # This will allow us to vectorize all the constraints.
+        # The order of the edges is given by that in the list of `all_edges`
+        all_edges = tree.edges
+        parent_idxs = np.array([node_to_idx[parent] for (parent, _) in all_edges])
+        child_idxs = np.array([node_to_idx[child] for (_, child) in all_edges])
+        edge_expressions = t_variables[child_idxs] - t_variables[parent_idxs]
+        # We need to determine which child nodes are leaves, as the minimum branch length constraint
+        # gets scaled for these
+        leaf_set = set(tree.leaves)
+        child_is_leaf = np.array([child in leaf_set for (_, child) in all_edges], dtype=bool)
+        del leaf_set
+        # Compute the minimum branch length factor in each case
+        minimum_branch_length_factor = np.where(
+            child_is_leaf,
+            minimum_branch_length * pendant_branch_minimum_branch_length_multiplier,
+            minimum_branch_length,
         )
+        # Now we are ready to apply the minimum branch length constraint in a vectorized way
+        minimum_branch_length_constraints = edge_expressions >= minimum_branch_length_factor * t_deepest_leaf
+        all_constraints.append(minimum_branch_length_constraints)
+
+        # Now we compute the ultrametric constraints. This applies to all leaves
+        # (except the deepest one, which is used as the reference)
+        leaf_idxs_ultrametric_constraint = np.array(
+            [
+                node_to_idx[leaf]
+                for leaf in tree.leaves
+                if leaf != deepest_leaf
+            ],
+            dtype=int
+        )
+        leaf_depth_factor = [
+            relative_leaf_depth_dict[nodes[i]] / relative_leaf_depth_dict[deepest_leaf]
+            for i in leaf_idxs_ultrametric_constraint
+        ]
+        if leaf_idxs_ultrametric_constraint.size > 0:
+            ultrametric_constraints = t_variables[leaf_idxs_ultrametric_constraint] == t_deepest_leaf * leaf_depth_factor
+            all_constraints.append(ultrametric_constraints)
 
         # # # # # Compute the penalized log-likelihood for edges # # # # #
         penalized_log_likelihood = 0
@@ -285,113 +307,68 @@ class IIDExponentialMLE(BranchLengthEstimator):
             == num_sites
         )
 
-        # The following lists are used for vectorizing the log-likelihood
-        # computation, which speeds up cvxpy.
-        edge_length_mutated_vector = []
-        num_mutated_vector = []
-        negative_rate_mutated_vector = []
-        edge_length_unmutated_vector = []
-        negative_num_unmutated_times_rate_vector = []
-        for (parent, child) in tree.edges:
-            edge_length = t_variables[child] - t_variables[parent]
-            parent_states = tree.get_character_states(parent)
-            child_states = tree.get_character_states(child)
-            for rate in sites_by_rate.keys():
-                num_mutated = (
-                    pseudo_mutations_per_edge
-                    * len(sites_by_rate[rate])
-                    / num_sites
+        # To vectorize computation of the number of mutations, we first create
+        # a matrix of size #nodes x #states
+        num_states = tree.character_matrix.shape[1]
+        node_states_matrix = np.zeros(shape=(num_nodes, num_states))
+        for node in nodes:
+            node_states_matrix[node_to_idx[node]] = tree.get_character_states(node)
+        # Now we get it for parents and children of shape #edges x #states
+        parent_states_matrix = node_states_matrix[parent_idxs, :]
+        child_states_matrix = node_states_matrix[child_idxs, :]
+        # Now we are ready to compute the number of mutations and non-mutations on each edge
+        non_missing_transition = (parent_states_matrix != tree.missing_state_indicator) & (child_states_matrix != tree.missing_state_indicator)
+        is_non_mutation = (parent_states_matrix == 0) & (child_states_matrix == 0)
+        is_mutation = (child_states_matrix != parent_states_matrix) & non_missing_transition
+
+        for (rate, site_rate_idxs) in sites_by_rate.items():
+            # NOTE: The pseudo-mutations are equally divided amongst all sites.
+            # This is why we use the factor of len(site_rate_idxs) / num_sites
+            site_rate_idxs_np = np.array(site_rate_idxs, dtype=int)
+            num_non_mutations_for_rate = is_non_mutation[:, site_rate_idxs_np].sum(axis=1) + pseudo_non_mutations_per_edge * len(site_rate_idxs) / num_sites
+            num_mutations_for_rate = is_mutation[:, site_rate_idxs_np].sum(axis=1) + pseudo_mutations_per_edge * len(site_rate_idxs) / num_sites
+            penalized_log_likelihood += cp.sum(
+                cp.multiply(
+                    -rate * num_non_mutations_for_rate,
+                    edge_expressions
                 )
-                num_unmutated = (
-                    pseudo_non_mutations_per_edge
-                    * len(sites_by_rate[rate])
-                    / num_sites
+            ) + cp.sum(
+                cp.multiply(
+                    num_mutations_for_rate,
+                    cp.log(
+                        1.0 - cp.exp(-rate * edge_expressions - 1e-5)
+                    )
                 )
-                for site in sites_by_rate[rate]:
-                    if parent_states[site] == 0 and child_states[site] == 0:
-                        num_unmutated += 1
-                    elif parent_states[site] != child_states[site]:
-                        if (
-                            parent_states[site] != tree.missing_state_indicator
-                            and child_states[site]
-                            != tree.missing_state_indicator
-                        ):
-                            num_mutated += 1
-                if num_unmutated > 0:
-                    if not _use_vectorized_implementation:
-                        # This is the term of the log-likelihood we want to
-                        # add. In the vectorized implementation, it will be
-                        # added later.
-                        penalized_log_likelihood += num_unmutated * (
-                            -edge_length * rate
-                        )
-                    else:
-                        edge_length_unmutated_vector.append(edge_length)
-                        negative_num_unmutated_times_rate_vector.append(
-                            -num_unmutated * rate
-                        )
-                if num_mutated > 0:
-                    if not _use_vectorized_implementation:
-                        # This is the term of the log-likelihood we want to
-                        # add. In the vectorized implementation, it will be
-                        # added later.
-                        penalized_log_likelihood += num_mutated * cp.log(
-                            1 - cp.exp(-edge_length * rate - 1e-5)
-                        )
-                    else:
-                        edge_length_mutated_vector.append(edge_length)
-                        num_mutated_vector.append(num_mutated)
-                        negative_rate_mutated_vector.append(-rate)
+            )
 
         # # # # # Add in log-likelihood of long-edge mutations # # # #
         long_edge_mutations = self._get_long_edge_mutations(tree, sites_by_rate)
         for rate in long_edge_mutations:
-            for ((parent, child), num_mutated) in long_edge_mutations[
-                rate
-            ].items():
-                edge_length = t_variables[child] - t_variables[parent]
-                # This is the term of the log-likelihood we want to add. In the
-                # vectorized implementation, it will be added later.
-                if not _use_vectorized_implementation:
-                    penalized_log_likelihood += num_mutated * cp.log(
-                        1
-                        - cp.exp(
-                            -edge_length * rate - 1e-5
-                        )  # We add eps for stability.
-                    )
-                else:
-                    edge_length_mutated_vector.append(edge_length)
-                    num_mutated_vector.append(num_mutated)
-                    negative_rate_mutated_vector.append(-rate)
-
-        # Now yes, vectorized log-likelihood computation!
-        if _use_vectorized_implementation:
-            if len(edge_length_unmutated_vector) > 0:
-                penalized_log_likelihood += cp.sum(
-                    cp.multiply(
-                        negative_num_unmutated_times_rate_vector,
-                        cp.hstack(edge_length_unmutated_vector)
-                    )
-                )
-            if len(edge_length_mutated_vector) > 0:
-                penalized_log_likelihood += cp.sum(
-                    cp.multiply(
-                        num_mutated_vector,
-                        cp.log(
-                            1.0 - cp.exp(
-                                cp.multiply(
-                                    cp.hstack(edge_length_mutated_vector),
-                                    negative_rate_mutated_vector
-                                ) - 1e-5
-                            )
+            parents__childs__num_mutated = long_edge_mutations[rate].items()
+            if len(parents__childs__num_mutated) == 0:
+                continue
+            parents__childs = [x[0] for x in parents__childs__num_mutated]
+            num_mutated = [x[1] for x in parents__childs__num_mutated]
+            parents = [x[0] for x in parents__childs]
+            childs = [x[1] for x in parents__childs]
+            parent_idxs_long_edges = np.array([node_to_idx[parent] for parent in parents])
+            child_idxs_long_edges = np.array([node_to_idx[child] for child in childs])
+            edge_expressions_long_edges = t_variables[child_idxs_long_edges] - t_variables[parent_idxs_long_edges]
+            penalized_log_likelihood += cp.sum(
+                cp.multiply(
+                    num_mutated,
+                    cp.log(
+                        1.0 - cp.exp(
+                            -edge_expressions_long_edges * rate - 1e-5
                         )
                     )
                 )
+            )
 
         # # # Normalize penalized_log_likelihood by the number of sites # # #
         # This is just to keep the log-likelihood on a similar scale
         # regardless of the number of characters.
-        penalized_log_likelihood /= tree.character_matrix.shape[1]
+        penalized_log_likelihood /= num_sites
 
         # # # # # Solve the problem # # # # #
         obj = cp.Maximize(penalized_log_likelihood)
@@ -411,7 +388,7 @@ class IIDExponentialMLE(BranchLengthEstimator):
                 raise IIDExponentialMLEError("Third-party solver(s) failed")
 
         # # # # # Extract the mutation rate # # # # #
-        scaling_factor = float(t_variables[deepest_leaf].value)
+        scaling_factor = float(t_variables[node_to_idx[deepest_leaf]].value)
         if scaling_factor < 1e-8 or scaling_factor > 15.0:
             # Note: when passing in very small relative mutation rates, this
             # check will fail even though everything is OK. Still worth checking
@@ -438,7 +415,7 @@ class IIDExponentialMLE(BranchLengthEstimator):
 
         # # # # # Populate the tree with the estimated branch lengths # # # # #
         times = {
-            node: float(t_variables[node].value) / scaling_factor
+            node: float(t_variables[node_to_idx[node]].value) / scaling_factor
             for node in tree.nodes
         }
         # Make sure that the root has time 0 (avoid epsilons)
@@ -448,9 +425,10 @@ class IIDExponentialMLE(BranchLengthEstimator):
         for (parent, child) in tree.depth_first_traverse_edges():
             times[child] = max(times[parent], times[child])
         tree.set_times(times)
-        self._log_likelihood = self.model_log_likelihood(
-            tree=tree, mutation_rate=self._mutation_rate
-        )
+        if self._compute_data_log_likelihood_after_solving:
+            self._log_likelihood = self.model_log_likelihood(
+                tree=tree, mutation_rate=self._mutation_rate
+            )
 
     @property
     def penalized_log_likelihood(self):
@@ -507,6 +485,10 @@ class IIDExponentialMLE(BranchLengthEstimator):
         long_edge_mutations = {
             rate: defaultdict(float) for rate in sites_by_rate.keys()
         }
+        # Note that if there is no missing data, there is nothing to do.
+        # So we just check for that first.
+        if (tree.character_matrix == tree.missing_state_indicator).sum().sum() == 0:
+            return long_edge_mutations
         # We pre-compute all states since we will need repeated access
         character_states_dict = {
             node: tree.get_character_states(node) for node in tree.nodes
@@ -531,25 +513,9 @@ class IIDExponentialMLE(BranchLengthEstimator):
                             == tree.missing_state_indicator
                         ):
                             u = tree.parent(u)
-                        if character_states_dict[u][i] == 0:
+                        if character_states_dict[u][i] != character_states[i]:
                             # We have identified a 'long-edge' mutation
                             long_edge_mutations[rate][(u, node)] += 1
-                        else:
-                            if (
-                                character_states_dict[u][i]
-                                != character_states[i]
-                            ):
-                                raise Exception(
-                                    "Ancestral state reconstruction seems "
-                                    f"invalid: character {character_states[i]} "
-                                    "descends from "
-                                    f"{character_states_dict[u][i]}."
-                                )
-                    elif character_states[i] == 0 and parent_states[i] != 0:
-                        raise Exception(
-                            "If a node has state 0 (uncut), its parent should "
-                            "also have state 0."
-                        )
         return long_edge_mutations
 
     @staticmethod
