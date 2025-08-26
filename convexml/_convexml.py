@@ -32,6 +32,7 @@ def convexml(
     backup_solver: Optional[str] = "SCS",
     pendant_branch_minimum_branch_length_multiplier: float = 0.5,
     _use_vectorized_implementation: bool = True,
+    compute_data_log_likelihood_after_solving: bool = True,
 ) -> Dict[str, object]:
     """
     ConvexML method for branch length estimation under an irreversible mutation model.
@@ -97,8 +98,11 @@ def convexml(
             correspond to cell divisions. Thus we set
             pendant_branch_minimum_branch_length_multiplier=0.5 by
             default.
-        _use_vectorized_implementation: Toggles between vectorized and
-            non-vectorized implementations. Only used for profiling purposes.
+        _use_vectorized_implementation: Deprecated -- we only support the
+            vectorized implementation as of ConvexML version 1.0.0
+        compute_data_log_likelihood_after_solving: If True, after solving the
+            optimization problem, the data log-likelihood (*without pseudocounts*)
+            will be computed and stored in the `log_likelihood` attribute.
     Returns:
         A dictionary containing:
             - "tree_newick": The Newick string representation of the tree with
@@ -123,6 +127,7 @@ def convexml(
         backup_solver=backup_solver,
         pendant_branch_minimum_branch_length_multiplier=pendant_branch_minimum_branch_length_multiplier,
         _use_vectorized_implementation=_use_vectorized_implementation,
+        compute_data_log_likelihood_after_solving=compute_data_log_likelihood_after_solving,
     )
 
     tree = CassiopeiaTree(tree=tree_newick)
